@@ -12,6 +12,8 @@ import java.util.*
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.widget.ArrayAdapter
+import io.realm.Sort
 
 class InputActivity : AppCompatActivity() {
 
@@ -21,6 +23,7 @@ class InputActivity : AppCompatActivity() {
     private var mHour = 0
     private var mMinute = 0
     private var mTask: Task? = null
+    private var categoryList: MutableList<String> = mutableListOf()
 
     private val mOnDateClickListener = View.OnClickListener {
         val datePickerDialog = DatePickerDialog(this,
@@ -53,6 +56,9 @@ class InputActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_input)
+        //カテゴリーのリストの初期値を設定
+        categoryList.add("全て")
+        reloadCategoryList()
 
         // ActionBarを設定する
         val toolbar = findViewById<View>(R.id.toolbar) as Toolbar
@@ -60,11 +66,14 @@ class InputActivity : AppCompatActivity() {
         if (supportActionBar != null) {
             supportActionBar!!.setDisplayHomeAsUpEnabled(true)
         }
-
         // UI部品の設定
         date_button.setOnClickListener(mOnDateClickListener)
         times_button.setOnClickListener(mOnTimeClickListener)
         done_button.setOnClickListener(mOnDoneClickListener)
+        addCategory_button.setOnClickListener { view ->
+            val intent = Intent(this@InputActivity, CategoryActivity::class.java)
+            startActivity(intent)
+        }
 
         // EXTRA_TASK から Task の id を取得して、 id から Task のインスタンスを取得する
         val intent = intent
@@ -84,7 +93,7 @@ class InputActivity : AppCompatActivity() {
         } else {
             // 更新の場合
             title_edit_text.setText(mTask!!.title)
-            category_edit_text.setText(mTask!!.category)
+            category_spinner.setSelection(mTask!!.categoryId)
             content_edit_text.setText(mTask!!.contents)
 
             val calendar = Calendar.getInstance()
@@ -101,6 +110,13 @@ class InputActivity : AppCompatActivity() {
             date_button.text = dateString
             times_button.text = timeString
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        categoryList = mutableListOf()
+        categoryList.add("全て")
+        reloadCategoryList()
     }
 
     private fun addTask() {
@@ -124,11 +140,11 @@ class InputActivity : AppCompatActivity() {
         }
 
         val title = title_edit_text.text.toString()
-        val category = category_edit_text.text.toString()
+        val category = category_spinner.selectedItemPosition
         val content = content_edit_text.text.toString()
 
         mTask!!.title = title
-        mTask!!.category = category
+        mTask!!.categoryId = category
         mTask!!.contents = content
         val calendar = GregorianCalendar(mYear, mMonth, mDay, mHour, mMinute)
         val date = calendar.time
@@ -150,5 +166,18 @@ class InputActivity : AppCompatActivity() {
 
         val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
         alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, resultPendingIntent)
+    }
+
+    private fun reloadCategoryList() {
+        val mCategory = Realm.getDefaultInstance()
+
+        // Realmデータベースから、「全てのデータを取得して新しい日時順に並べた結果」を取得
+        val categoryRealmResults = mCategory.where(Category::class.java).findAll().sort("id", Sort.ASCENDING)
+        for(x in categoryRealmResults){
+            categoryList.add(x.categoryName)
+        }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, categoryList)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        category_spinner.adapter = adapter
     }
 }
